@@ -90,24 +90,38 @@ Swap `embed_sequences(..., model_name="esm2_t33_650M_UR50D")` for a larger
 model if you have GPU headroom — see `src/embeddings.py` for the full list
 of ESM-2 checkpoint sizes.
 
-## Results (synthetic demo)
+## Results
+
+### Real data (ProteinGym, 5 assays)
+
+The baseline features get a modest but clearly non-random signal on real
+Deep Mutational Scanning data — well below what a protein language model
+like ESM or EVE achieves (published ProteinGym baselines typically land
+in the 0.3–0.6 Spearman range), which is the expected and honest result
+for hand-crafted composition/physicochemical features versus a learned
+representation. That gap is the interesting part: it's a concrete,
+reproducible demonstration of how much signal a pretrained protein
+language model adds over simple sequence statistics.
 
 ```
- assay_name  n_mutants  spearman
-synthetic_0        500      0.97
-synthetic_1        500      0.96
-synthetic_2        500      0.96
-synthetic_3        500      0.97
-synthetic_4        500      0.95
-       MEAN       2500      0.96
+assay_name                           n_mutants  spearman
+A0A140D2T1_ZIKV_Sourisseau_2019        9576       0.111
+A0A192B1T2_9HIV1_Haddox_2018           12577      0.275
+A0A1I9GEU1_NEIME_Kennouche_2019        922       -0.066
+A0A247D711_LISMN_Stadelmann_2021       1653       0.247
+A0A2Z5U3Z0_9INFA_Doud_2016             10715      0.186
+MEAN                                   35443      0.150
 ```
 
-These numbers are from a synthetic assay with a known, designed-in signal
-(see `make_synthetic_assay` in `src/data.py`) — they're a sanity check that
-the pipeline works, **not** a claim about real protein fitness prediction
-difficulty. Real DMS assays are much noisier; published ESM/EVE/GEMME
-baselines on ProteinGym typically land in the 0.3–0.6 Spearman range
-depending on the assay.
+Run it yourself: `python run_benchmark.py --data-dir data/DMS_ProteinGym_substitutions --limit 5`
+
+### Synthetic demo (sanity check, not a real result)
+
+`python run_benchmark.py --demo` runs on a synthetic assay with a known,
+designed-in signal — this checks that the pipeline correctly recovers a
+signal it should be able to find, not that real protein fitness
+prediction is easy. Expect Spearman ≈0.95 here; it is **not** comparable
+to the real-data numbers above.
 
 ## Project structure
 
