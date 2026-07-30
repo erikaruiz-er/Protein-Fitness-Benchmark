@@ -17,6 +17,7 @@ real (multi-GB) ProteinGym download.
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass
 
 import numpy as np
@@ -33,14 +34,39 @@ class Assay:
     df: pd.DataFrame  # columns: mutant, mutated_sequence, DMS_score
 
 
+def _infer_wildtype(mutant: str, mutated_sequence: str) -> str:
+    """Reconstruct the wildtype sequence by reverting the substitutions
+    encoded in a `mutant` string (e.g. "A123P" or "A123P:D45N") against one
+    mutated sequence. This is how real ProteinGym CSVs work: they give you
+    the mutant sequence plus the mutation code, not the wildtype directly."""
+    seq = list(mutated_sequence)
+    for part in mutant.split(":"):
+        m = re.match(r"^([A-Za-z])(\d+)([A-Za-z])$", part.strip())
+        if not m:
+            raise ValueError(f"Could not parse mutation code: {part!r}")
+        wt_aa, pos, mut_aa = m.group(1), int(m.group(2)), m.group(3)
+        idx = pos - 1
+        if idx >= len(seq):
+            raise ValueError(f"Mutation position {pos} out of range for sequence of length {len(seq)}")
+        if seq[idx] != mut_aa:
+            raise ValueError(
+                f"Mismatch at position {pos}: expected mutant residue {mut_aa!r}, "
+                f"found {seq[idx]!r} in mutated_sequence"
+            )
+        seq[idx] = wt_aa
+    return "".join(seq)
+
+
 def load_assay_csv(path: str, name: str | None = None) -> Assay:
     """Load a single ProteinGym-format assay CSV from disk.
 
     Expects columns: mutant, mutated_sequence, DMS_score.
-    The wildtype sequence is inferred as the sequence with the most common
-    length minus any mutant markers isn't reliable, so instead we require
-    a `wildtype_sequence` column OR a companion `<name>_wt.txt` file next
-    to the CSV. See README for how to point this at real ProteinGym data.
+    The wildtype sequence is determined, in order of preference: (1) a
+    `wildtype_sequence` column if present, (2) a companion `<name>_wt.txt`
+    file next to the CSV, (3) reconstructed automatically from the first
+    row's `mutant` code and `mutated_sequence` -- this is how real
+    ProteinGym substitution CSVs work, since they don't ship the wildtype
+    sequence as a separate column.
     """
     df = pd.read_csv(path)
     required = {"mutant", "mutated_sequence", "DMS_score"}
@@ -56,10 +82,7 @@ def load_assay_csv(path: str, name: str | None = None) -> Assay:
             with open(wt_path) as f:
                 wt = f.read().strip()
         except FileNotFoundError:
-            raise ValueError(
-                f"Could not determine wildtype sequence for {path}. "
-                f"Add a 'wildtype_sequence' column or a {wt_path} file."
-            )
+            wt = _infer_wildtype(df["mutant"].iloc[0], df["mutated_sequence"].iloc[0])
 
     return Assay(name=name or path, wildtype_sequence=wt, df=df)
 
@@ -102,19 +125,11 @@ def make_synthetic_assay(
 
         mutated = wildtype[:pos] + new_aa + wildtype[pos + 1:]
 
-        # Loosely mimics a real stability/activity landscape: fitness tracks
-        # the *change* in hydrophobicity at the mutated site (a signal a
-        # simple composition-aware model can pick up), plus a strong penalty
-        # if the single catalytic position is touched at all (a position-
-        # specific effect that composition-only features can't see --
-        # deliberately left as irreducible signal, the way a protein
-        # language model with positional/structural context would capture
-        # it but a bag-of-amino-acids baseline can't).
         d_hydro = hydrophobicity[new_aa] - hydrophobicity[wildtype[pos]]
         score = 0.5 * d_hydro
         if pos == catalytic_position:
             score -= 4.0
-        score += np_rng.normal(0, 0.5)  # experimental noise
+        score += np_rng.normal(0, 0.5)
 
         rows.append(
             {

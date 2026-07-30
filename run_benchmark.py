@@ -39,7 +39,7 @@ def main():
         if not paths:
             raise SystemExit(f"No CSVs found in {args.data_dir}")
         print(f"Loading {len(paths)} assays from {args.data_dir}...\n")
-        assays = [load_assay_csv(p) for p in paths]
+        assays = [load_assay_csv(p, name=os.path.splitext(os.path.basename(p))[0]) for p in paths]
 
     results = evaluate_many(assays, n_folds=args.n_folds)
     print(results.to_string(index=False))
