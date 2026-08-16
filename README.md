@@ -11,8 +11,7 @@ This matters because Deep Mutational Scanning (DMS) — the gold-standard way
 to measure this experimentally — is slow and expensive: you synthesize
 thousands of variants and assay each one. A model that ranks variants well
 *before* the wet lab means fewer variants need to be tested to find the
-useful ones, which is directly the kind of workflow acceleration
-[GPT-Rosalind is built for](https://help.openai.com/en/articles/20001193-introducing-gpt-rosalind-for-life-sciences-research).
+useful ones.
 
 ## What this repo does
 
